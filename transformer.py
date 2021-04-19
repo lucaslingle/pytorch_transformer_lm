@@ -11,7 +11,10 @@ def merge_states(x):
     return tc.reshape(x, [start, a*b])
 
 def attention_mask(nd, ns):
-    return tc.ones((nd, ns)).triu()
+    # this assumes nd = ns. during generation, this won't hold, since we generate one token at a time.
+    # the ns from openai includes any additional 'past' tokens and their resulting state,
+    # which appears to be required to generate correctly. FIX LATER.
+    return tc.ones((nd, ns)).tril()
 
 
 class MultiheadAttention(tc.nn.Module):
