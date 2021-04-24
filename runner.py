@@ -31,9 +31,9 @@ class Runner:
             loss.backward()
             optimizer.step()
 
-            if batch_idx % 100 == 0:
+            if True: #batch_idx % 100 == 0:
                 loss = loss.item()
-                print("batch: {}... loss: {}".format(batch_idx, loss))
+                print("batch: [{}/{}]... loss: {}".format(batch_idx, 25000 // self.batch_size, loss))
 
         return
 

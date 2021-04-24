@@ -8,8 +8,8 @@ from runner import Runner
 # Parse arguments.
 parser = argparse.ArgumentParser('Pytorch Transformer Language Model')
 parser.add_argument('--mode', type=str, choices=['train', 'generate'], default='train')
-parser.add_argument('--batch_size', type=int, default=64)
-parser.add_argument('--max_context_size', type=int, default=40)
+parser.add_argument('--batch_size', type=int, default=128)
+parser.add_argument('--max_context_size', type=int, default=100)
 parser.add_argument('--d_model', type=int, default=512)
 parser.add_argument('--n_heads', type=int, default=8)
 parser.add_argument('--n_layers', type=int, default=6)
@@ -37,8 +37,10 @@ model = PreactivationTranformer(
     n_emb=args.d_model,
     n_heads=args.n_heads,
     n_layers=args.n_layers).to(device)
+print(model)
 
-optimizer = tc.optim.AdamW(model.parameters(), lr=0.001, weight_decay=0.0001) # change this to cosine schedule in a bit
+optimizer = tc.optim.AdamW(model.parameters(), lr=0.001, weight_decay=0.0005)
+# change this to cosine schedule in a bit
 
 # Runner.
 runner = Runner(
