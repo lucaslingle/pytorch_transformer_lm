@@ -115,6 +115,7 @@ class Runner:
             for line in lines:
                 f.write(line + '\n')
 
+        print('Wrote samples to {}'.format(fp))
         return
 
     def save_checkpoint(self, model, optimizer):

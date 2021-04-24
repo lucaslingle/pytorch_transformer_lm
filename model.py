@@ -144,7 +144,7 @@ class PreactivationTranformer(tc.nn.Module):
             self.transformer_stack.append(PreactivationTranformerLayer(d_model=n_emb, num_heads=n_heads))
 
         self.ln_final = LayerNorm(n_emb)
-        self.fc = tc.nn.Linear(n_emb, n_vocab, bias=True)
+        self.fc = tc.nn.Linear(n_emb, n_vocab, bias=False)
 
     def position_embeddings(self, n_ctx, n_emb):
         pe = tc.zeros(n_ctx, n_emb)
