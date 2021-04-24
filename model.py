@@ -167,7 +167,7 @@ class PreactivationTranformer(tc.nn.Module):
 
         normed = self.ln_final(h)
         logits = self.fc(normed)
-        logprobs = tc.nn.LogSoftmax()(logits)
+        logprobs = tc.nn.LogSoftmax(dim=-1)(logits)
 
         return logprobs, present
 

@@ -95,7 +95,7 @@ class Runner:
                 # generate tokens x_1, ..., x_{max_tokens}, x_{max_tokens+1}.
                 # after training model, the last token should be a '<pad>' token, which serves as eos.
                 logprobs, present = model.forward(x_tm1, past=past)
-                probs = tc.nn.Softmax(dim=-1)(logprobs.squeeze(dim=1))
+                probs = tc.nn.Softmax(dim=-1)(logprobs[:,-1,:])
                 x_t = tc.multinomial(probs, num_samples=1)
                 tokens = tc.cat((tokens, x_t), dim=-1)
                 x_tm1 = x_t
@@ -108,7 +108,9 @@ class Runner:
 
         lines = [' '.join([vocab.itos[x] for x in line]) for line in tokens.numpy()]
 
-        fp = os.path.join(self.output_dir, self.model_name, 'samples.txt')
+        sample_dir = os.path.join(self.output_dir, self.model_name)
+        os.makedirs(sample_dir, exist_ok=True)
+        fp = os.path.join(sample_dir, 'samples.txt')
         with open(fp, 'a+') as f:
             for line in lines:
                 f.write(line + '\n')
@@ -117,8 +119,7 @@ class Runner:
 
     def save_checkpoint(self, model, optimizer):
         model_path = os.path.join(self.checkpoint_dir, self.model_name)
-        if not os.path.exists(model_path):
-            os.makedirs(model_path)
+        os.makedirs(model_path, exist_ok=True)
 
         tc.save(model.state_dict(), os.path.join(self.checkpoint_dir, self.model_name, 'model.pth'))
         tc.save(optimizer.state_dict(), os.path.join(self.checkpoint_dir, self.model_name, 'optimizer.pth'))
