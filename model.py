@@ -164,13 +164,12 @@ class PreactivationTranformer(tc.nn.Module):
             h, present = self.transformer_stack[i](h, past=pasts[i])
             presents.append(present)
         present = tc.stack(presents, dim=1)
+
         normed = self.ln_final(h)
         logits = self.fc(normed)
         logprobs = tc.nn.LogSoftmax()(logits)
-        return {
-            "log_probs": logprobs,
-            "present": present
-        }
+
+        return logprobs, present
 
 
 
