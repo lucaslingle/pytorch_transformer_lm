@@ -4,11 +4,13 @@ import math
 # ported from gpt-2
 def split_states(x, n):
     *start, m = x.shape
-    return tc.reshape(x, [start, n, m//n])
+    shape = start + [n, m//n]
+    return x.view(*shape)
 
 def merge_states(x):
     *start, a, b = x.shape
-    return tc.reshape(x, [start, a*b])
+    shape = start + [a*b]
+    return x.view(*shape)
 
 def attention_mask(nd, ns):
     # returns an attention mask. each row of the mask will correspond to an attn mask
@@ -54,13 +56,13 @@ class MultiheadAttention(tc.nn.Module):
 
     def forward(self, x, past):
         QKV = self.c_attn(x)
-        Q, K, V = map(self.split_heads, tc.split(QKV, 3, dim=-1)) # split Q, K, V and organize each as [B, H, T, d_k].
+        Q, K, V = map(self.split_heads, tc.chunk(QKV, 3, dim=-1)) # split Q, K, V and organize each as [B, H, T, d_k].
         present = tc.stack([K, V], dim=1) # packages K, V along a new dimension, added as dim 1.
         if past is not None:
             past_K, past_V = tc.unbind(past, dim=1) # torch equiv of unstack; unstack K, V from past along dimension 1.
             K = tc.cat((past_K, K), dim=-2) # concatenate along source time axis
             V = tc.cat((past_V, V), dim=-2) # concatenate along source time axis
-        w = tc.einsum('bhid,bhjd->bhij', Q, K) * tc.rsqrt(self.d_k)
+        w = tc.einsum('bhid,bhjd->bhij', Q, K) * tc.rsqrt(tc.Tensor(self.d_k))
         w = self.mask_attn_weights(w)
         w = tc.nn.Softmax(dim=-1)(w)
         a = tc.einsum('bhij,bhjd->bhid', w, V)
