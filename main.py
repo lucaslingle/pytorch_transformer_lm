@@ -14,7 +14,7 @@ parser.add_argument('--d_model', type=int, default=128)
 parser.add_argument('--n_heads', type=int, default=4)
 parser.add_argument('--n_layers', type=int, default=2)
 parser.add_argument('--checkpoint_dir', type=str, default='checkpoints', help='dir name for all checkpoints generated')
-parser.add_argument('--model_dir', type=str, default='model', help='model name. used for for checkpoints and samples')
+parser.add_argument('--model_name', type=str, default='model', help='model name used for checkpoints and samples')
 parser.add_argument('--epochs', type=int, default='10')
 args = parser.parse_args()
 
