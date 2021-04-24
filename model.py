@@ -127,11 +127,12 @@ class PreactivationTranformer(tc.nn.Module):
         self.n_layers = n_layers
 
         self.token_embs = tc.nn.Parameter(tc.Tensor(n_vocab, n_emb))
-        position_embs = self.position_embeddings(n_ctx+1, n_emb) # plus one for go token.
+        self.position_embs = self.position_embeddings(n_ctx+1, n_emb) # plus one for go token.
 
         tc.nn.init.normal_(self.token_embs, mean=0.0, std=0.02)
-        self.register_buffer('position_embs', position_embs)
+        #self.register_buffer('position_embs', self.position_embs)
         # ^^ iirc if not model parameters, pos embs wont be sent to gpu unless described as buffers
+        # pytorch is complaining when i combine this with a class field for position_embs however saying already exists
 
         self.transformer_stack = tc.nn.ModuleList()
         for i in range(n_layers):
@@ -151,7 +152,7 @@ class PreactivationTranformer(tc.nn.Module):
 
     def forward(self, present, past=None):
         emb_x = tc.gather(self.token_embs, dim=0, index=present)
-        h = emb_x + self.position_emb_mat
+        h = emb_x + self.position_embs.unsqueeze(1)
 
         presents = []
         pasts = tc.unbind(past, dim=1) if past is not None else [None] * self.n_layers
