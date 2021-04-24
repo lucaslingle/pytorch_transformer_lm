@@ -9,10 +9,10 @@ from runner import Runner
 parser = argparse.ArgumentParser('Pytorch Transformer Language Model')
 parser.add_argument('--mode', type=str, choices=['train', 'generate'], default='train')
 parser.add_argument('--batch_size', type=int, default=64)
-parser.add_argument('--max_context_size', type=int, default=20)
-parser.add_argument('--d_model', type=int, default=128)
-parser.add_argument('--n_heads', type=int, default=4)
-parser.add_argument('--n_layers', type=int, default=2)
+parser.add_argument('--max_context_size', type=int, default=40)
+parser.add_argument('--d_model', type=int, default=512)
+parser.add_argument('--n_heads', type=int, default=8)
+parser.add_argument('--n_layers', type=int, default=6)
 parser.add_argument('--model_name', type=str, default='model', help='model name used for checkpoints and samples')
 parser.add_argument('--checkpoint_dir', type=str, default='checkpoints', help='dir name for all checkpoints generated')
 parser.add_argument('--output_dir', type=str, default='output', help='dir name for all samples generated')
@@ -38,7 +38,7 @@ model = PreactivationTranformer(
     n_heads=args.n_heads,
     n_layers=args.n_layers).to(device)
 
-optimizer = tc.optim.Adam(model.parameters(), lr=0.001, weight_decay=0.0001) # change this to cosine schedule in a bit
+optimizer = tc.optim.AdamW(model.parameters(), lr=0.001, weight_decay=0.0001) # change this to cosine schedule in a bit
 
 # Runner.
 runner = Runner(
