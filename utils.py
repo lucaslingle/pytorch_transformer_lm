@@ -27,7 +27,7 @@ def text_pipeline(text, tokenizer, vocab):
     return sequence
 
 
-def lstm_preprocess_pipeline(sequences, max_tokens=20):
+def sequence_preprocess_pipeline(sequences, max_tokens=20):
     batch_size = len(sequences)
     sequences = [tc.Tensor(s)[0:max_tokens] for s in sequences]
 
@@ -53,14 +53,14 @@ def collate_batch(batch, dataset_map_fn, batch_map_fn):
     return X, Y, L
 
 
-def get_dataloaders(dataset_map_fn, batch_size):
+def get_dataloaders(dataset_map_fn, batch_map_fn, batch_size):
     training_data = tt.datasets.IMDB(root='data', split='train')
     test_data = tt.datasets.IMDB(root='data', split='test')
 
     training_data = tc.utils.data.BufferedShuffleDataset(training_data, buffer_size=25000)
     test_data = tc.utils.data.BufferedShuffleDataset(test_data, buffer_size=25000)
 
-    collate_fn = partial(collate_batch, dataset_map_fn=dataset_map_fn, batch_map_fn=lstm_preprocess_pipeline)
+    collate_fn = partial(collate_batch, dataset_map_fn=dataset_map_fn, batch_map_fn=batch_map_fn)
 
     train_dataloader = tc.utils.data.DataLoader(training_data, batch_size=batch_size, collate_fn=collate_fn)
     test_dataloader = tc.utils.data.DataLoader(test_data, batch_size=batch_size, collate_fn=collate_fn)

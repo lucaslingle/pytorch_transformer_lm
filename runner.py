@@ -1,13 +1,21 @@
 import torch as tc
 from utils import get_dataloaders
 from utils import get_mask
+import os
 
 
 class Runner:
-    def __init__(self, verbose=True):
-        self.verbose = verbose
+    def __init__(self, dataset_map_fn, batch_map_fn, batch_size, context_size, model_name, checkpoint_dir, output_dir):
+        self.dataset_map_fn = dataset_map_fn
+        self.batch_map_fn = batch_map_fn
+        self.batch_size = batch_size
+        self.max_tokens = context_size
+        self.model_name = model_name
+        self.checkpoint_dir = checkpoint_dir
+        self.output_dir = output_dir
 
-    def train_epoch(self, model, train_dataloader, optimizer, device):
+    def train_epoch(self, model, train_dataloader, optimizer, scheduler, device):
+        # TODO(lucaslingle): add support for schedulers.
         for batch_idx, (X, Y, L) in enumerate(train_dataloader, 1):
             X, Y, L = X.to(device), Y.to(device), L.to(device)
 
@@ -23,7 +31,7 @@ class Runner:
             loss.backward()
             optimizer.step()
 
-            if self.verbose and batch_idx % 100 == 0:
+            if batch_idx % 100 == 0:
                 loss = loss.item()
                 print("batch: {}... loss: {}".format(batch_idx, loss))
 
@@ -53,29 +61,29 @@ class Runner:
             "loss": test_loss
         }
 
-    def train(self, dataset_map_fn, batch_size, epochs, model, device, optimizer):
+    def train(self, epochs, model, optimizer, scheduler, device):
         for epoch in range(1, epochs+1):
-            if self.verbose:
-                print(f"Epoch {epoch}\n-------------------------------")
+            print(f"Epoch {epoch}\n-------------------------------")
 
-            train_dataloader, test_dataloader = get_dataloaders(dataset_map_fn=dataset_map_fn, batch_size=batch_size)
+            # shuffle, batch, and preprocess an ephemeral dataset
+            train_dataloader, test_dataloader = get_dataloaders(
+                dataset_map_fn=self.dataset_map_fn, batch_map_fn=self.batch_map_fn, batch_size=self.batch_size)
 
             model.train()
-            self.train_epoch(model, train_dataloader, optimizer, device)
+            self.train_epoch(model, train_dataloader, optimizer, scheduler, device)
 
             model.eval()
             test_eval_dict = self.evaluate_epoch(model, test_dataloader, device)
             test_accuracy = test_eval_dict['accuracy'] * 100
             test_loss = test_eval_dict['loss']
-            if self.verbose:
-                print(f"Test Error: \n Accuracy: {test_accuracy:>0.1f}%, Avg loss: {test_loss:>8f}\n")
+            print(f"Test Error: \n Accuracy: {test_accuracy:>0.1f}%, Avg loss: {test_loss:>8f}\n")
 
             if epoch % 10 == 0:
                 tc.save(model.state_dict(), "model.pth")
                 tc.save(optimizer.state_dict(), "optimizer.pth")
 
-    def generate(self, vocab, batch_size, model, fp, max_tokens=20):
-        go_tokens = vocab.stoi['<go>'] * tc.ones((batch_size, 1)).long()
+    def generate(self, model, vocab):
+        go_tokens = vocab.stoi['<go>'] * tc.ones((self.batch_size, 1)).long()
         tokens = go_tokens
 
         model.eval()
@@ -84,7 +92,7 @@ class Runner:
             past = None
             x_tm1 = go_tokens
 
-            for t in range(1, max_tokens+2):
+            for t in range(1, self.max_tokens+2):
                 # generate tokens x_1, ..., x_{max_tokens}, x_{max_tokens+1}.
                 # after training model, the last token should be a '<pad>' token, which serves as eos.
                 logprobs, present = model.forward(x_tm1, past=past)
@@ -96,13 +104,29 @@ class Runner:
                     past = present
                 else:
                     past = tc.cat((past, present), dim=-2) # [batch, layer, kvstack, timestep, features].
+                    # note that present is only one token wide during generation, since nd has length 1.
+                    # in general, it can be wider, since it comes from the nd-length destination sequence.
 
         lines = [' '.join([vocab.itos[x] for x in line]) for line in tokens.numpy()]
 
+        fp = os.path.join(self.output_dir, self.model_name, 'samples.txt')
         with open(fp, 'a+') as f:
             for line in lines:
                 f.write(line + '\n')
 
         return
 
+    def save_checkpoint(self, model, optimizer):
+        model_path = os.path.join(self.checkpoint_dir, self.model_name)
+        if not os.path.exists(model_path):
+            os.makedirs(model_path)
 
+        tc.save(model.state_dict(), os.path.join(self.checkpoint_dir, self.model_name, 'model.pth'))
+        tc.save(optimizer.state_dict(), os.path.join(self.checkpoint_dir, self.model_name, 'optimizer.pth'))
+
+    def maybe_load_checkpoint(self, model, optimizer):
+        try:
+            model.load_state_dict(tc.load(os.path.join(self.checkpoint_dir, self.model_name, 'model.pth')))
+            optimizer.load_state_dict(tc.load(os.path.join(self.checkpoint_dir, self.model_name, 'optimizer.pth')))
+        except Exception:
+            print('Bad checkpoint or none. Continuing training from scratch.')

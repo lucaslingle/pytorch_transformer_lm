@@ -127,10 +127,10 @@ class PreactivationTranformer(tc.nn.Module):
         self.n_layers = n_layers
 
         self.token_embs = tc.nn.Parameter(tc.Tensor(n_vocab, n_emb))
-        self.position_embs = self.position_embeddings(n_ctx, n_emb)
+        position_embs = self.position_embeddings(n_ctx+1, n_emb) # plus one for go token.
 
-        tc.nn.init.normal_(self.token_embedder.weight, mean=0.0, std=0.02)
-        self.register_buffer('position_emb_mat', self.position_emb_mat)
+        tc.nn.init.normal_(self.token_embs, mean=0.0, std=0.02)
+        self.register_buffer('position_embs', position_embs)
         # ^^ iirc if not model parameters, pos embs wont be sent to gpu unless described as buffers
 
         self.transformer_stack = tc.nn.ModuleList()
