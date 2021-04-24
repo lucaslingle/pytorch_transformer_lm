@@ -89,6 +89,7 @@ class FeedForward(tc.nn.Module):
 class LayerNorm(tc.nn.Module):
     def __init__(self, d_model, epsilon=1e-6):
         super().__init__()
+        self.d_model = d_model
         self.gamma = tc.nn.Parameter(tc.tensor(data=tc.ones(d_model)))
         self.beta = tc.nn.Parameter(tc.tensor(data=tc.zeros(d_model)))
         self.epsilon = epsilon
