@@ -92,7 +92,10 @@ class Runner:
                 x_t = tc.multinomial(probs, num_samples=1)
                 tokens = tc.cat((tokens, x_t), dim=-1)
                 x_tm1 = x_t
-                past = tc.cat((past, present), dim=-2) # [batch, layer, kvstack, timestep, features].
+                if past is None:
+                    past = present
+                else:
+                    past = tc.cat((past, present), dim=-2) # [batch, layer, kvstack, timestep, features].
 
         lines = [' '.join([vocab.itos[x] for x in line]) for line in tokens.numpy()]
 
