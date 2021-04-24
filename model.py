@@ -1,16 +1,17 @@
 import torch as tc
+import numpy as np
 import math
 
 # ported from gpt-2
 def split_states(x, n):
     *start, m = x.shape
     shape = start + [n, m//n]
-    return x.view(*shape)
+    return x.reshape(*shape)
 
 def merge_states(x):
     *start, a, b = x.shape
     shape = start + [a*b]
-    return x.view(*shape)
+    return x.reshape(*shape)
 
 def attention_mask(nd, ns):
     # returns an attention mask. each row of the mask will correspond to an attn mask
@@ -50,7 +51,7 @@ class MultiheadAttention(tc.nn.Module):
     def mask_attn_weights(self, w):
         _, _, nd, ns = w.shape
         b = attention_mask(nd, ns)
-        b = tc.reshape(b, [1, 1] + b.shape)
+        b = b.view(1, 1, *b.shape) # ensure mask will broadcast to batch, heads dimensions.
         m = w*b - 1e10 * (1-b)
         return m
 
@@ -62,7 +63,7 @@ class MultiheadAttention(tc.nn.Module):
             past_K, past_V = tc.unbind(past, dim=1) # torch equiv of unstack; unstack K, V from past along dimension 1.
             K = tc.cat((past_K, K), dim=-2) # concatenate along source time axis
             V = tc.cat((past_V, V), dim=-2) # concatenate along source time axis
-        w = tc.einsum('bhid,bhjd->bhij', Q, K) * tc.rsqrt(tc.Tensor(self.d_k))
+        w = tc.einsum('bhid,bhjd->bhij', Q, K) / np.sqrt(self.d_k)
         w = self.mask_attn_weights(w)
         w = tc.nn.Softmax(dim=-1)(w)
         a = tc.einsum('bhij,bhjd->bhid', w, V)
@@ -73,11 +74,12 @@ class MultiheadAttention(tc.nn.Module):
 
 class FeedForward(tc.nn.Module):
     def __init__(self, d_model, d_hidden, multiplier=1.0):
+        # TODO(lucaslingle): sort out the weight multiplier.
         super().__init__()
         self.conv_stack = tc.nn.Sequential(
-            tc.nn.Conv1d(d_model, d_hidden, (1,1), stride=(1,1)),
+            tc.nn.Conv1d(d_model, d_hidden, kernel_size=(1,), stride=(1,)),
             tc.nn.GELU(),
-            tc.nn.Conv1d(d_hidden, d_model, (1,1), stride=(1,1))
+            tc.nn.Conv1d(d_hidden, d_model, kernel_size=(1,), stride=(1,))
         )
         for m in self.conv_stack.modules():
             if isinstance(m, tc.nn.Conv1d):
@@ -119,7 +121,7 @@ class PreactivationTranformerLayer(tc.nn.Module):
         x = x + a
 
         n2 = self.ln2(x)
-        f = self.ff(n2)
+        f = self.ff(n2.permute(0, 2, 1)).permute(0, 2, 1) # convert to NCT format and then back to NTC.
         x = x + f
         return x, present
 
