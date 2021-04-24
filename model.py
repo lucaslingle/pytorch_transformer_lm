@@ -58,8 +58,8 @@ class MultiheadAttention(tc.nn.Module):
         present = tc.stack([K, V], dim=1) # packages K, V along a new dimension, added as dim 1.
         if past is not None:
             past_K, past_V = tc.unbind(past, dim=1) # torch equiv of unstack; unstack K, V from past along dimension 1.
-            K = tc.cat((past_K, K), dim=1) # concatenate along time axis
-            V = tc.cat((past_V, V), dim=1) # concatenate along time axis
+            K = tc.cat((past_K, K), dim=-2) # concatenate along source time axis
+            V = tc.cat((past_V, V), dim=-2) # concatenate along source time axis
         w = tc.einsum('bhid,bhjd->bhij', Q, K) * tc.rsqrt(self.d_k)
         w = self.mask_attn_weights(w)
         w = tc.nn.Softmax(dim=-1)(w)
