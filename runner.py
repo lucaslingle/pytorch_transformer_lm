@@ -20,7 +20,7 @@ class Runner:
             X, Y, L = X.to(device), Y.to(device), L.to(device)
 
             # Forward
-            logprobs, _ = model(X, L)
+            logprobs, _ = model(X)
             mask = get_mask(L, sequence_len=X.shape[-1])
             logprobs_Y = tc.gather(logprobs, dim=-1, index=Y.unsqueeze(dim=-1)).squeeze(dim=-1)
             masked_nll_loss = -(mask * logprobs_Y).sum()
@@ -44,7 +44,7 @@ class Runner:
             for X, Y, L in dataloader:
                 X, Y, L = X.to(device), Y.to(device), L.to(device)
 
-                logprobs, _ = model(X, L)
+                logprobs, _ = model(X)
                 mask = get_mask(L, sequence_len=X.shape[-1])
                 logprobs_Y = tc.gather(logprobs, dim=-1, index=Y.unsqueeze(dim=-1)).squeeze(dim=-1)
                 masked_nll_loss = -(mask * logprobs_Y).sum()
@@ -79,8 +79,7 @@ class Runner:
             print(f"Test Error: \n Accuracy: {test_accuracy:>0.1f}%, Avg loss: {test_loss:>8f}\n")
 
             if epoch % 10 == 0:
-                tc.save(model.state_dict(), "model.pth")
-                tc.save(optimizer.state_dict(), "optimizer.pth")
+                self.save_checkpoint(model, optimizer)
 
     def generate(self, model, vocab):
         go_tokens = vocab.stoi['<go>'] * tc.ones((self.batch_size, 1)).long()

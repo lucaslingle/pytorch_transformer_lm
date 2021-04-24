@@ -126,10 +126,10 @@ class PreactivationTranformer(tc.nn.Module):
         super(PreactivationTranformer, self).__init__()
         self.n_layers = n_layers
 
-        self.token_embs = tc.nn.Parameter(tc.Tensor(n_vocab, n_emb))
+        self.token_embs = tc.nn.Embedding(n_vocab, n_emb)
         self.position_embs = self.position_embeddings(n_ctx+1, n_emb) # plus one for go token.
 
-        tc.nn.init.normal_(self.token_embs, mean=0.0, std=0.02)
+        tc.nn.init.normal_(self.token_embs.weight, mean=0.0, std=0.02)
         #self.register_buffer('position_embs', self.position_embs)
         # ^^ iirc if not model parameters, pos embs wont be sent to gpu unless described as buffers
         # pytorch is complaining when i combine this with a class field for position_embs however saying already exists
@@ -144,15 +144,14 @@ class PreactivationTranformer(tc.nn.Module):
     def position_embeddings(self, n_ctx, n_emb):
         pe = tc.zeros(n_ctx, n_emb)
         position = tc.arange(0, n_ctx, dtype=tc.float).unsqueeze(1)
-        div_term = tc.exp(tc.arange(0, n_emb, 2).float() * (-math.log(10000.0) / n_emb))
+        div_term = tc.exp(tc.arange(0, n_emb, 2).float() * (-math.log(10000.0) / n_emb)).unsqueeze(0)
         pe[:, 0::2] = tc.sin(position * div_term)
         pe[:, 1::2] = tc.cos(position * div_term)
-        pe = pe.unsqueeze(0).transpose(0, 1)
         return pe
 
-    def forward(self, present, past=None):
-        emb_x = tc.gather(self.token_embs, dim=0, index=present)
-        h = emb_x + self.position_embs.unsqueeze(1)
+    def forward(self, x, past=None):
+        emb_x = self.token_embs(x)
+        h = emb_x + self.position_embs.unsqueeze(0)
 
         presents = []
         pasts = tc.unbind(past, dim=1) if past is not None else [None] * self.n_layers
