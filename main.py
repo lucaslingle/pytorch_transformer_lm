@@ -8,18 +8,17 @@ from runner import Runner
 # Parse arguments.
 parser = argparse.ArgumentParser('Pytorch Transformer Language Model')
 parser.add_argument('--mode', type=str, choices=['train', 'generate'], default='train')
-parser.add_argument('--batch_size', type=int, default=512)
+parser.add_argument('--batch_size', type=int, default=128)
 parser.add_argument('--max_context_size', type=int, default=100)
-parser.add_argument('--d_model', type=int, default=512)
-parser.add_argument('--n_heads', type=int, default=8)
+parser.add_argument('--d_model', type=int, default=200)
+parser.add_argument('--n_heads', type=int, default=4)
 parser.add_argument('--n_layers', type=int, default=12)
 parser.add_argument('--max_lr', type=int, default=2.5e-4)
 parser.add_argument('--weight_decay', type=int, default=0.01)
-parser.add_argument('--max_steps', type=int, default=100*391)
+parser.add_argument('--max_steps', type=int, default=100*195)
 parser.add_argument('--model_name', type=str, default='model', help='model name used for checkpoints and samples')
 parser.add_argument('--checkpoint_dir', type=str, default='checkpoints', help='dir name for all checkpoints generated')
 parser.add_argument('--output_dir', type=str, default='output', help='dir name for all samples generated')
-#parser.add_argument('--epochs', type=int, default='10')
 args = parser.parse_args()
 
 # Preprocessing.
