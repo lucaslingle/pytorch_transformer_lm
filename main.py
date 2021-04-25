@@ -6,7 +6,7 @@ from model import PreactivationTranformer
 from runner import Runner
 
 # Parse arguments.
-parser = argparse.ArgumentParser('Pytorch Transformer Language Model')
+parser = argparse.ArgumentParser('Pytorch implementation of a Transformer-based Language Model.')
 parser.add_argument('--mode', type=str, choices=['train', 'generate'], default='train')
 parser.add_argument('--batch_size', type=int, default=128)
 parser.add_argument('--max_context_size', type=int, default=100)
