@@ -13,11 +13,14 @@ class Runner:
         self.model_name = model_name
         self.checkpoint_dir = checkpoint_dir
         self.output_dir = output_dir
+        self.global_step = 0
 
     def train_epoch(self, model, train_dataloader, optimizer, scheduler, device):
-        # TODO(lucaslingle): add support for schedulers.
         for batch_idx, (X, Y, L) in enumerate(train_dataloader, 1):
             X, Y, L = X.to(device), Y.to(device), L.to(device)
+
+            if len(X) < self.batch_size:
+                continue
 
             # Forward
             logprobs, _ = model(X)
@@ -30,6 +33,8 @@ class Runner:
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            scheduler.step()
+            self.global_step += 1
 
             if True: #batch_idx % 100 == 0:
                 loss = loss.item()
@@ -37,11 +42,13 @@ class Runner:
 
         return
 
-    def evaluate_epoch(self, model, dataloader, device):
+    def evaluate_epoch(self, model, dataloader, device, fast_eval=True):
         num_test_tokens = 0
         test_loss, correct = 0, 0
         with tc.no_grad():
-            for X, Y, L in dataloader:
+            for batch_idx, (X, Y, L) in enumerate(dataloader, 1):
+                if fast_eval and batch_idx % 10 != 0:
+                    continue
                 X, Y, L = X.to(device), Y.to(device), L.to(device)
 
                 logprobs, _ = model(X)
@@ -61,8 +68,9 @@ class Runner:
             "loss": test_loss
         }
 
-    def train(self, epochs, model, optimizer, scheduler, device):
-        for epoch in range(1, epochs+1):
+    def train(self, max_steps, model, optimizer, scheduler, device):
+        epoch = 1
+        while self.global_step < max_steps:
             print(f"Epoch {epoch}\n-------------------------------")
 
             # shuffle, batch, and preprocess an ephemeral dataset
@@ -78,7 +86,9 @@ class Runner:
             test_loss = test_eval_dict['loss']
             print(f"Test Error: \n Accuracy: {test_accuracy:>0.1f}%, Avg loss: {test_loss:>8f}\n")
 
-            if epoch % 10 == 0:
+            epoch += 1
+
+            if True: #epoch % 10 == 0:
                 self.save_checkpoint(model, optimizer)
 
     def generate(self, model, vocab):
@@ -115,7 +125,7 @@ class Runner:
             for line in lines:
                 f.write(line + '\n')
 
-        print('Wrote samples to {}'.format(fp))
+        print('Generated samples were successfully written to {}'.format(fp))
         return
 
     def save_checkpoint(self, model, optimizer):

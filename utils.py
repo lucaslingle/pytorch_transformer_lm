@@ -75,3 +75,17 @@ def get_mask(lengths, sequence_len):
         lengths.unsqueeze(dim=1).expand(batch_size, sequence_len)
     )
     return bool_mask.float()
+
+def get_weight_decay_param_groups(model, weight_decay, skip_list=('bias', 'beta', 'gamma')):
+    decay, no_decay = [], []
+    for name, param in model.named_parameters():
+        if not param.requires_grad:
+            continue
+        elif len(param.shape) == 1 or name.split('.')[-1] in skip_list:
+            no_decay.append(param)
+        else:
+            decay.append(param)
+    return [{'params': no_decay, 'weight_decay': 0.0}, {'params': decay, 'weight_decay': weight_decay}]
+
+
+

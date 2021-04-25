@@ -75,6 +75,7 @@ class MultiheadAttention(tc.nn.Module):
 class FeedForward(tc.nn.Module):
     def __init__(self, d_model, d_hidden, multiplier=1.0):
         # TODO(lucaslingle): sort out the weight multiplier.
+        # Update: I tried. GPT-2 source code does not seem to use this multiplier anywhere, contrary to paper.
         super().__init__()
         self.conv_stack = tc.nn.Sequential(
             tc.nn.Conv1d(d_model, d_hidden, kernel_size=(1,), stride=(1,)),
@@ -132,12 +133,9 @@ class PreactivationTranformer(tc.nn.Module):
         self.n_layers = n_layers
 
         self.token_embs = tc.nn.Embedding(n_vocab, n_emb)
-        self.position_embs = self.position_embeddings(n_ctx+1, n_emb) # plus one for go token.
-
-        tc.nn.init.normal_(self.token_embs.weight, mean=0.0, std=0.02)
-        #self.register_buffer('position_embs', self.position_embs)
-        # ^^ iirc if not model parameters, pos embs wont be sent to gpu unless described as buffers
-        # pytorch is complaining when i combine this with a class field for position_embs however saying already exists
+        self.register_buffer('position_embs', self.position_embeddings(n_ctx+1, n_emb))
+        # ensures non-parameter field self.position_embs is sent to the gpu when model.to('cuda') is called.
+        # see https://stackoverflow.com/questions/60908827/
 
         self.transformer_stack = tc.nn.ModuleList()
         for i in range(n_layers):
@@ -145,6 +143,9 @@ class PreactivationTranformer(tc.nn.Module):
 
         self.ln_final = LayerNorm(n_emb)
         self.fc = tc.nn.Linear(n_emb, n_vocab, bias=False)
+
+        tc.nn.init.normal_(self.token_embs.weight, mean=0.0, std=0.02)
+        tc.nn.init.normal_(self.fc.weight, mean=0.0, std=0.02)
 
     def position_embeddings(self, n_ctx, n_emb):
         pe = tc.zeros(n_ctx, n_emb)
