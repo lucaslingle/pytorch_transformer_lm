@@ -131,6 +131,7 @@ class PreactivationTranformer(tc.nn.Module):
     def __init__(self, n_vocab, n_ctx, n_emb, n_heads, n_layers):
         super(PreactivationTranformer, self).__init__()
         self.n_layers = n_layers
+        self.n_ctx = n_ctx
 
         self.token_embs = tc.nn.Embedding(n_vocab, n_emb)
         self.register_buffer('position_embs', self.position_embeddings(n_ctx+1, n_emb))
@@ -157,7 +158,13 @@ class PreactivationTranformer(tc.nn.Module):
 
     def forward(self, x, past=None):
         emb_x = self.token_embs(x)
-        h = emb_x + self.position_embs.unsqueeze(0)
+        emb_p = self.position_embs.unsqueeze(0)
+
+        lp = 0 if past is None else len(past)
+        assert lp + x.shape[1] <= self.n_ctx
+        emb_p = emb_p[:, lp:lp+x.shape[1], :]
+
+        h = emb_x + emb_p
 
         presents = []
         pasts = tc.unbind(past, dim=1) if past is not None else [None] * self.n_layers

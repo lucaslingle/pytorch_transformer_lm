@@ -91,18 +91,24 @@ class Runner:
             if True: #epoch % 10 == 0:
                 self.save_checkpoint(model, optimizer)
 
-    def generate(self, model, vocab):
-        go_tokens = vocab.stoi['<go>'] * tc.ones((self.batch_size, 1)).long()
-        tokens = go_tokens
+    def generate(self, model, vocab, num_samples=10):
+        go_tokens = vocab.stoi['<go>'] * tc.ones((num_samples, 1)).long()
+        i_tokens = vocab.stoi['i'] * tc.ones((num_samples, 1)).long()
+        saw_tokens = vocab.stoi['saw'] * tc.ones((num_samples, 1)).long()
+        this_tokens = vocab.stoi['this'] * tc.ones((num_samples, 1)).long()
+        a_tokens = vocab.stoi['a'] * tc.ones((num_samples, 1)).long()
+        few_tokens = vocab.stoi['few'] * tc.ones((num_samples, 1)).long()
+        tokens = tc.cat((go_tokens, i_tokens, saw_tokens, this_tokens, a_tokens, few_tokens), dim=-1)
 
         model.eval()
 
         with tc.no_grad():
             past = None
-            x_tm1 = go_tokens
+            x_tm1 = tokens
 
-            for t in range(1, self.max_tokens+2):
-                # generate tokens x_1, ..., x_{max_tokens}, x_{max_tokens+1}.
+            for t in range(tokens.shape[1], self.max_tokens+2):
+                print("t: {}".format(t))
+                # generate tokens x_t, ..., x_{max_tokens}, x_{max_tokens+1}.
                 # after training model, the last token should be a '<pad>' token, which serves as eos.
                 logprobs, present = model.forward(x_tm1, past=past)
                 probs = tc.nn.Softmax(dim=-1)(logprobs[:,-1,:])
@@ -123,6 +129,7 @@ class Runner:
         fp = os.path.join(sample_dir, 'samples.txt')
         with open(fp, 'a+') as f:
             for line in lines:
+                f.write('-' * 80 + '\n')
                 f.write(line + '\n')
 
         print('Generated samples were successfully written to {}'.format(fp))
@@ -139,5 +146,6 @@ class Runner:
         try:
             model.load_state_dict(tc.load(os.path.join(self.checkpoint_dir, self.model_name, 'model.pth')))
             optimizer.load_state_dict(tc.load(os.path.join(self.checkpoint_dir, self.model_name, 'optimizer.pth')))
+            print('Successfully loaded checkpoint.')
         except Exception:
             print('Bad checkpoint or none. Continuing training from scratch.')
