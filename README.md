@@ -14,4 +14,5 @@ python main.py --mode=generate
 ```
 and the samples will be appended to a file ```output/model_name/samples.txt```.
 
-PS: It's actually working!
+PS: It's actually working! In this git repo, samples from a transformer trained for 27 epochs are provided in ```output/model/samples.txt```. 
+After you clone the repo, delete the file to start from scratch, or name your model something different using the ```--model_name``` flag.
