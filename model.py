@@ -157,10 +157,15 @@ class PreactivationTranformer(tc.nn.Module):
         return pe
 
     def forward(self, x, past=None):
+        """
+        :param x: input token longtensor of shape [B, T2]
+        :param past: optional past state tensor of shape [B, L, 2, H, T1, d_k]
+        :return: log probs tensor of shape [B, T2, A], and new state
+        """
         emb_x = self.token_embs(x)
         emb_p = self.position_embs.unsqueeze(0)
 
-        lp = 0 if past is None else len(past)
+        lp = 0 if past is None else past.shape[-2]
         assert lp + x.shape[1] <= self.n_ctx
         emb_p = emb_p[:, lp:lp+x.shape[1], :]
 
@@ -178,11 +183,3 @@ class PreactivationTranformer(tc.nn.Module):
         logprobs = tc.nn.LogSoftmax(dim=-1)(logits)
 
         return logprobs, present
-
-
-
-
-
-
-
-
