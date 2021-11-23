@@ -15,8 +15,9 @@ class Runner:
         self.output_dir = output_dir
         self.global_step = 0
 
-    def train_epoch(self, model, train_dataloader, optimizer, scheduler, device):
-        for batch_idx, (X, Y, L) in enumerate(train_dataloader, 1):
+    def _train_epoch(self, model, dataloader, optimizer, scheduler, device):
+        model.train()
+        for batch_idx, (X, Y, L) in enumerate(dataloader, 1):
             X, Y, L = X.to(device), Y.to(device), L.to(device)
 
             if len(X) < self.batch_size:
@@ -36,13 +37,13 @@ class Runner:
             scheduler.step()
             self.global_step += 1
 
-            if True: #batch_idx % 100 == 0:
-                loss = loss.item()
-                print("batch: [{}/{}]... loss: {}".format(batch_idx, 25000 // self.batch_size, loss))
+            # Logging
+            loss = loss.item()
+            n = 25000 // self.batch_size
+            print(f"batch: [{batch_idx}/{n}]... loss: {loss}")
 
-        return
-
-    def evaluate_epoch(self, model, dataloader, device, fast_eval=True):
+    def _evaluate_epoch(self, model, dataloader, device, fast_eval=True):
+        model.eval()
         num_test_tokens = 0
         test_loss, correct = 0, 0
         with tc.no_grad():
@@ -73,22 +74,31 @@ class Runner:
         while self.global_step < max_steps:
             print(f"Epoch {epoch}\n-------------------------------")
 
-            # shuffle, batch, and preprocess an ephemeral dataset
             train_dataloader, test_dataloader = get_dataloaders(
-                dataset_map_fn=self.dataset_map_fn, batch_map_fn=self.batch_map_fn, batch_size=self.batch_size)
+                dataset_map_fn=self.dataset_map_fn,
+                batch_map_fn=self.batch_map_fn,
+                batch_size=self.batch_size)
 
-            model.train()
-            self.train_epoch(model, train_dataloader, optimizer, scheduler, device)
+            self._train_epoch(
+                model=model,
+                dataloader=train_dataloader,
+                optimizer=optimizer,
+                scheduler=scheduler,
+                device=device)
 
-            model.eval()
-            test_eval_dict = self.evaluate_epoch(model, test_dataloader, device)
-            test_accuracy = test_eval_dict['accuracy'] * 100
+            test_eval_dict = self._evaluate_epoch(
+                model=model,
+                dataloader=test_dataloader,
+                device=device)
+
+            test_acc = test_eval_dict['accuracy'] * 100
             test_loss = test_eval_dict['loss']
-            print(f"Test Error: \n Accuracy: {test_accuracy:>0.1f}%, Avg loss: {test_loss:>8f}\n")
-
-            epoch += 1
+            print(f"Test Error: ")
+            print(f"Accuracy: {test_acc:>0.1f}%, Avg loss: {test_loss:>8f}")
+            print("")
 
             self.save_checkpoint(model, optimizer)
+            epoch += 1
 
     def generate(self, model, vocab, num_samples=10):
         go_tokens = vocab.stoi['<go>'] * tc.ones((num_samples, 1)).long()
