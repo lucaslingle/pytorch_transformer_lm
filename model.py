@@ -176,7 +176,7 @@ class PreactivationTranformer(tc.nn.Module):
                  and new state of shape [B, L, 2, H, T1+T2, d_k].
         """
         assert len(list(x.shape)) in [1, 2]
-        if len(list(x.shape)):
+        if len(list(x.shape)) == 1:
             x = x.unsqueeze(1)
 
         emb_x = self.token_embs(x)
