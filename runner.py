@@ -119,7 +119,7 @@ class Runner:
             print(f"Accuracy: {test_acc:>0.1f}%, Avg loss: {test_loss:>8f}")
             print("")
 
-            self.save_checkpoint(model, optimizer)
+            self.save_checkpoint(model, optimizer, scheduler)
             epoch += 1
 
     @tc.no_grad()
@@ -127,7 +127,7 @@ class Runner:
         model.eval()
 
         prefix = ['<go>'] + "i saw this a few".split(" ")
-        prefix = [vocab.stoi(token) for token in prefix]
+        prefix = [vocab.stoi[token] for token in prefix]
         prefix = tc.tile(tc.LongTensor(prefix).view(1, -1), [num_samples, 1])
         tokens = prefix
         x_tm1, past = tokens, None
@@ -152,24 +152,30 @@ class Runner:
                 f.write(line + '\n')
         print('Generated samples were successfully written to {}'.format(fp))
 
-    def save_checkpoint(self, model, optimizer):
+    def save_checkpoint(self, model, optimizer, scheduler):
         model_dir = os.path.join(self.checkpoint_dir, self.model_name)
         os.makedirs(model_dir, exist_ok=True)
 
         model_fp = os.path.join(model_dir, 'model.pth')
         optimizer_fp = os.path.join(model_dir, 'optimizer.pth')
+        scheduler_fp = os.path.join(model_dir, 'scheduler.pth')
 
         tc.save(model.state_dict(), model_fp)
         tc.save(optimizer.state_dict(), optimizer_fp)
+        if scheduler is not None:
+            tc.save(scheduler.state_dict(), scheduler_fp)
 
-    def maybe_load_checkpoint(self, model, optimizer):
+    def maybe_load_checkpoint(self, model, optimizer, scheduler):
         try:
             model_dir = os.path.join(self.checkpoint_dir, self.model_name)
             model_fp = os.path.join(model_dir, 'model.pth')
             optimizer_fp = os.path.join(model_dir, 'optimizer.pth')
+            scheduler_fp = os.path.join(model_dir, 'scheduler.pth')
 
             model.load_state_dict(tc.load(model_fp))
             optimizer.load_state_dict(tc.load(optimizer_fp))
+            if scheduler is not None:
+                scheduler.load_state_dict(tc.load(scheduler_fp))
             print('Successfully loaded checkpoint.')
         except Exception:
             print('Bad checkpoint or none. Continuing training from scratch.')

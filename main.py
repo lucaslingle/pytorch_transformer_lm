@@ -63,15 +63,15 @@ def create_model(vocab, max_tokens, n_layers, d_model, n_heads, device):
 if __name__ == '__main__':
     args = create_argparser().parse_args()
 
-    # preprocessing.
+    # get preprocessing ops.
     vocab, tokenizer, dataset_map_fn, batch_map_fn = create_preprocessing(
         args.max_tokens)
 
-    # device.
+    # get device.
     device = get_device()
     print(f'Using {device}.')
 
-    # learning system.
+    # create learning system.
     model = create_model(
         vocab=vocab,
         max_tokens=args.max_tokens,
@@ -90,7 +90,7 @@ if __name__ == '__main__':
         T_max=args.max_steps,
         eta_min=0.0)
 
-    # runner.
+    # create runner.
     runner = Runner(
         dataset_map_fn=dataset_map_fn,
         batch_map_fn=batch_map_fn,
@@ -100,8 +100,9 @@ if __name__ == '__main__':
         checkpoint_dir=args.checkpoint_dir,
         output_dir=args.output_dir)
 
-    runner.maybe_load_checkpoint(model, optimizer)
+    runner.maybe_load_checkpoint(model, optimizer, scheduler)
 
+    # run it.
     if args.mode == 'train':
         runner.train(
             max_steps=args.max_steps,
