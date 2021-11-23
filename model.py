@@ -1,7 +1,6 @@
 import math
 
 import torch as tc
-import numpy as np
 
 
 # ported from gpt-2
@@ -18,20 +17,9 @@ def merge_states(x):
 
 
 def attention_mask(nd, ns):
-    # returns an attention mask. each row of the mask will correspond to an attn mask
-    # used by a particular token position in the destination. thus, rows correspond to destination, and columns to src.
-
-    # during generation, ns == nd won't hold, since we generate one token at a time.
-    # the ns count from openai code includes any additional 'past' tokens and their resulting state,
-    # which is required to generate correctly.
-
     i = tc.arange(nd).view(nd, 1)
     j = tc.arange(ns).view(1, ns)
     m = i >= j - (ns - nd)
-    # ^ masks out future when ns = nd; during generation, nd == 1, and ns = 1+len(tokens_generated), due to the go token,
-    # so we can unify the code. note the past kv already computed, so noncausal mask on earlier part won't matter.
-    # this code can have other uses as well, e.g., for transformer-xl style truncated bptt.
-    # in this case, src would include all tokens so far, and dest would only include those in the bptt window.
     return m.int()
 
 
@@ -66,20 +54,21 @@ class MultiheadAttention(tc.nn.Module):
         :return: attention output tensor of shape [B, T2, d_model]
                  and present key value tensor with shape [B, 2, H, T1+T2, d_k]
         """
-        QKV = self.c_attn(x)
-        Q, K, V = map(self.split_heads, tc.chunk(QKV, 3, dim=-1)) # split Q, K, V and organize each as [B, H, T, d_k].
+        qkv = self.c_attn(x)
+        qkv = tc.chunk(qkv, 3, dim=-1)
+        qs, ks, vs = map(self.split_heads, qkv)  # each with shape [B, H, T, d_k]
         if past is not None:
-            past_K, past_V = tc.unbind(past, dim=1) # torch equiv of unstack; unstack K, V from past along dimension 1.
-            K = tc.cat((past_K, K), dim=-2)  # concatenate along source time axis
-            V = tc.cat((past_V, V), dim=-2)
-        present = tc.stack([K, V], dim=1)  # packages K, V along a new dimension, added as dim 1.
-        w = tc.einsum('bhid,bhjd->bhij', Q, K) / np.sqrt(self.d_k)
-        w = self.mask_attn_weights(w)
-        w = tc.nn.Softmax(dim=-1)(w)
-        a = tc.einsum('bhij,bhjd->bhid', w, V)
-        a = self.merge_heads(a) # shape is now [B, T, D].
-        a = self.c_proj(a)
-        return a, present
+            past_ks, past_vs = tc.unbind(past, dim=1)
+            K = tc.cat((past_ks, ks), dim=-2)  # concatenate along source time axis
+            V = tc.cat((past_vs, vs), dim=-2)
+        present = tc.stack((ks, vs), dim=1)
+        ws = tc.einsum('bhid,bhjd->bhij', qs, ks) / (self.d_k ** 0.5)
+        ws = self.mask_attn_weights(ws)
+        ws = tc.nn.Softmax(dim=-1)(ws)
+        attn = tc.einsum('bhij,bhjd->bhid', ws, vs)
+        attn = self.merge_heads(attn)  # shape is now [B, T, D].
+        attn = self.c_proj(attn)
+        return attn, present
 
 
 class FeedForward(tc.nn.Module):
@@ -143,7 +132,8 @@ class PreactivationTranformer(tc.nn.Module):
 
         self.token_embs = tc.nn.Embedding(n_vocab, n_emb)
         self.register_buffer('position_embs', self.position_embeddings(n_ctx+1, n_emb))
-        # ensures non-parameter field self.position_embs is sent to the gpu when model.to('cuda') is called.
+        # ^ ensures non-parameter field self.position_embs is sent to the gpu
+        # when model.to('cuda') is called.
         # see https://stackoverflow.com/questions/60908827/
 
         self.transformer_layers = tc.nn.ModuleList([
@@ -156,6 +146,9 @@ class PreactivationTranformer(tc.nn.Module):
         self.ln_final = LayerNorm(n_emb)
         self.fc = tc.nn.Linear(n_emb, n_vocab, bias=False)
 
+        self.init_weights()
+
+    def init_weights(self):
         tc.nn.init.normal_(self.token_embs.weight, mean=0.0, std=0.02)
         tc.nn.init.normal_(self.fc.weight, mean=0.0, std=0.02)
 
