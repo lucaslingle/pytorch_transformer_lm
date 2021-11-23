@@ -50,7 +50,6 @@ def get_device():
     return dev
 
 
-# Learning system.
 def create_model(vocab, max_tokens, n_layers, d_model, n_heads, device):
     model = PreactivationTranformer(
         n_vocab=len(vocab.stoi),
@@ -72,7 +71,7 @@ if __name__ == '__main__':
     device = get_device()
     print(f'Using {device}.')
 
-    # create learning system.
+    # learning system.
     model = create_model(
         vocab=vocab,
         max_tokens=args.max_tokens,
@@ -91,7 +90,7 @@ if __name__ == '__main__':
         T_max=args.max_steps,
         eta_min=0.0)
 
-    # Runner.
+    # runner.
     runner = Runner(
         dataset_map_fn=dataset_map_fn,
         batch_map_fn=batch_map_fn,
