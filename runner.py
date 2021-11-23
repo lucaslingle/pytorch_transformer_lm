@@ -126,7 +126,7 @@ class Runner:
     def generate(self, model, vocab, num_samples=10):
         prefix = ['<go>'] + "i saw this a few".split(" ")
         prefix = [vocab.stoi(token) for token in prefix]
-        prefix = tc.tile(tc.LongTensor(prefix).view(1, 1), [num_samples, 1])
+        prefix = tc.tile(tc.LongTensor(prefix).view(1, -1), [num_samples, 1])
         tokens = prefix
 
         past = None
