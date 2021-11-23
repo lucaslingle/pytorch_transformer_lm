@@ -1,6 +1,8 @@
+import math
+
 import torch as tc
 import numpy as np
-import math
+
 
 # ported from gpt-2
 def split_states(x, n):
@@ -8,10 +10,12 @@ def split_states(x, n):
     shape = start + [n, m//n]
     return x.reshape(*shape)
 
+
 def merge_states(x):
     *start, a, b = x.shape
     shape = start + [a*b]
     return x.reshape(*shape)
+
 
 def attention_mask(nd, ns):
     # returns an attention mask. each row of the mask will correspond to an attn mask
@@ -55,14 +59,20 @@ class MultiheadAttention(tc.nn.Module):
         m = w*b - 1e10 * (1-b)
         return m
 
-    def forward(self, x, past):
+    def forward(self, x, past=None):
+        """
+        :param x: transformer layer input tensor of shape [B, T2, d_model]
+        :param past: optional past key value tensor of shape [B, 2, H, T1, d_k]
+        :return: attention output tensor of shape [B, T2, d_model]
+                 and present key value tensor with shape [B, 2, H, T1+T2, d_k]
+        """
         QKV = self.c_attn(x)
         Q, K, V = map(self.split_heads, tc.chunk(QKV, 3, dim=-1)) # split Q, K, V and organize each as [B, H, T, d_k].
-        present = tc.stack([K, V], dim=1) # packages K, V along a new dimension, added as dim 1.
         if past is not None:
             past_K, past_V = tc.unbind(past, dim=1) # torch equiv of unstack; unstack K, V from past along dimension 1.
-            K = tc.cat((past_K, K), dim=-2) # concatenate along source time axis
-            V = tc.cat((past_V, V), dim=-2) # concatenate along source time axis
+            K = tc.cat((past_K, K), dim=-2)  # concatenate along source time axis
+            V = tc.cat((past_V, V), dim=-2)
+        present = tc.stack([K, V], dim=1)  # packages K, V along a new dimension, added as dim 1.
         w = tc.einsum('bhid,bhjd->bhij', Q, K) / np.sqrt(self.d_k)
         w = self.mask_attn_weights(w)
         w = tc.nn.Softmax(dim=-1)(w)
@@ -73,9 +83,7 @@ class MultiheadAttention(tc.nn.Module):
 
 
 class FeedForward(tc.nn.Module):
-    def __init__(self, d_model, d_hidden, multiplier=1.0):
-        # TODO(lucaslingle): sort out the weight multiplier.
-        # Update: I tried. GPT-2 source code does not seem to use this multiplier anywhere, contrary to paper.
+    def __init__(self, d_model, d_hidden):
         super().__init__()
         self.conv_stack = tc.nn.Sequential(
             tc.nn.Conv1d(d_model, d_hidden, kernel_size=(1,), stride=(1,)),
@@ -84,7 +92,7 @@ class FeedForward(tc.nn.Module):
         )
         for m in self.conv_stack.modules():
             if isinstance(m, tc.nn.Conv1d):
-                tc.nn.init.normal_(m.weight, mean=0.0, std=0.02*multiplier)
+                tc.nn.init.normal_(m.weight, mean=0.0, std=0.02)
                 tc.nn.init.zeros_(m.bias)
 
     def forward(self, x):
@@ -95,15 +103,15 @@ class LayerNorm(tc.nn.Module):
     def __init__(self, d_model, epsilon=1e-6):
         super().__init__()
         self.d_model = d_model
-        self.gamma = tc.nn.Parameter(tc.tensor(data=tc.ones(d_model)))
-        self.beta = tc.nn.Parameter(tc.tensor(data=tc.zeros(d_model)))
+        self.gamma = tc.nn.Parameter(tc.ones(d_model))
+        self.beta = tc.nn.Parameter(tc.zeros(d_model))
         self.epsilon = epsilon
 
     def forward(self, x):
         mu = tc.mean(x, dim=-1, keepdim=True)
         var = tc.mean(tc.square(x-mu), dim=-1, keepdim=True)
         x = (x-mu) * tc.rsqrt(var + self.epsilon)
-        view_shape = [1, 1, self.d_model] # broadcast to BTD
+        view_shape = [1, 1, self.d_model]  # broadcast to BTD
         x = x * self.gamma.view(*view_shape) + self.beta.view(*view_shape)
         return x
 
@@ -122,7 +130,7 @@ class PreactivationTranformerLayer(tc.nn.Module):
         x = x + a
 
         n2 = self.ln2(x)
-        f = self.ff(n2.permute(0, 2, 1)).permute(0, 2, 1) # convert to NCT format and then back to NTC.
+        f = self.ff(n2.permute(0, 2, 1)).permute(0, 2, 1)
         x = x + f
         return x, present
 
@@ -138,9 +146,12 @@ class PreactivationTranformer(tc.nn.Module):
         # ensures non-parameter field self.position_embs is sent to the gpu when model.to('cuda') is called.
         # see https://stackoverflow.com/questions/60908827/
 
-        self.transformer_stack = tc.nn.ModuleList()
-        for i in range(n_layers):
-            self.transformer_stack.append(PreactivationTranformerLayer(d_model=n_emb, num_heads=n_heads))
+        self.transformer_layers = tc.nn.ModuleList([
+            PreactivationTranformerLayer(
+                d_model=n_emb,
+                num_heads=n_heads)
+            for _ in range(self.n_layers)
+        ])
 
         self.ln_final = LayerNorm(n_emb)
         self.fc = tc.nn.Linear(n_emb, n_vocab, bias=False)
@@ -160,7 +171,8 @@ class PreactivationTranformer(tc.nn.Module):
         """
         :param x: input token longtensor of shape [B, T2]
         :param past: optional past state tensor of shape [B, L, 2, H, T1, d_k]
-        :return: log probs tensor of shape [B, T2, A], and new state
+        :return: log probs tensor of shape [B, T2, A],
+                 and new state of shape [B, L, 2, H, T1+T2, d_k].
         """
         emb_x = self.token_embs(x)
         emb_p = self.position_embs.unsqueeze(0)
@@ -174,7 +186,7 @@ class PreactivationTranformer(tc.nn.Module):
         presents = []
         pasts = tc.unbind(past, dim=1) if past is not None else [None] * self.n_layers
         for i in range(0, self.n_layers):
-            h, present = self.transformer_stack[i](h, past=pasts[i])
+            h, present = self.transformer_layers[i](h, past=pasts[i])
             presents.append(present)
         present = tc.stack(presents, dim=1)
 

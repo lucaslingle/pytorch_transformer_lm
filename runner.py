@@ -5,11 +5,11 @@ import os
 
 
 class Runner:
-    def __init__(self, dataset_map_fn, batch_map_fn, batch_size, context_size, model_name, checkpoint_dir, output_dir):
+    def __init__(self, dataset_map_fn, batch_map_fn, batch_size, max_tokens, model_name, checkpoint_dir, output_dir):
         self.dataset_map_fn = dataset_map_fn
         self.batch_map_fn = batch_map_fn
         self.batch_size = batch_size
-        self.max_tokens = context_size
+        self.max_tokens = max_tokens
         self.model_name = model_name
         self.checkpoint_dir = checkpoint_dir
         self.output_dir = output_dir
@@ -88,8 +88,7 @@ class Runner:
 
             epoch += 1
 
-            if True: #epoch % 10 == 0:
-                self.save_checkpoint(model, optimizer)
+            self.save_checkpoint(model, optimizer)
 
     def generate(self, model, vocab, num_samples=10):
         go_tokens = vocab.stoi['<go>'] * tc.ones((num_samples, 1)).long()
@@ -109,18 +108,12 @@ class Runner:
             for t in range(tokens.shape[1], self.max_tokens+2):
                 print("t: {}".format(t))
                 # generate tokens x_t, ..., x_{max_tokens}, x_{max_tokens+1}.
-                # after training model, the last token should be a '<pad>' token, which serves as eos.
-                logprobs, present = model.forward(x_tm1, past=past)
+                # in a trained model, ideally the last token would be a '<pad>'
+                logprobs, past = model.forward(x_tm1, past=past)
                 probs = tc.nn.Softmax(dim=-1)(logprobs[:,-1,:])
                 x_t = tc.multinomial(probs, num_samples=1)
                 tokens = tc.cat((tokens, x_t), dim=-1)
                 x_tm1 = x_t
-                if past is None:
-                    past = present
-                else:
-                    past = tc.cat((past, present), dim=-2) # [batch, layer, kvstack, timestep, features].
-                    # note that present is only one token wide during generation, since nd has length 1.
-                    # in general, it can be wider, since it comes from the nd-length destination sequence.
 
         lines = [' '.join([vocab.itos[x] for x in line]) for line in tokens.numpy()]
 
