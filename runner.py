@@ -124,19 +124,18 @@ class Runner:
 
     @tc.no_grad()
     def generate(self, model, vocab, num_samples=10):
+        model.eval()
+
         prefix = ['<go>'] + "i saw this a few".split(" ")
         prefix = [vocab.stoi(token) for token in prefix]
         prefix = tc.tile(tc.LongTensor(prefix).view(1, -1), [num_samples, 1])
         tokens = prefix
+        x_tm1, past = tokens, None
 
-        past = None
-        x_tm1 = tokens
-
-        model.eval()
         for t in range(tokens.shape[1], self.max_tokens+2):
             print("t: {}".format(t))
             # generate tokens x_t, ..., x_{max_tokens}, x_{max_tokens+1}.
-            # in a trained model, ideally the last token would be a '<pad>'
+            # in a trained model, ideally the last token would be a '<pad>'.
             logits, past = model.forward(x_tm1, past=past)
             x_t = tc.distributions.Categorical(logits=logits[:,-1:,:]).sample()
             tokens = tc.cat((tokens, x_t), dim=-1)
