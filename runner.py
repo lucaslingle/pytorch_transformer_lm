@@ -138,7 +138,7 @@ class Runner:
             # generate tokens x_t, ..., x_{max_tokens}, x_{max_tokens+1}.
             # in a trained model, ideally the last token would be a '<pad>'
             logits, past = model.forward(x_tm1, past=past)
-            x_t = tc.distributions.Categorical(logits=logits).sample()
+            x_t = tc.distributions.Categorical(logits=logits[:,-1,:]).sample()
             tokens = tc.cat((tokens, x_t), dim=-1)
             x_tm1 = x_t
 

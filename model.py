@@ -169,16 +169,11 @@ class PreactivationTranformer(tc.nn.Module):
 
     def forward(self, x, past=None):
         """
-        :param x: input token longtensor of shape [B, T2],
-                  or shape [B], in which case T2 == 1.
+        :param x: input token longtensor of shape [B, T2]
         :param past: optional past state tensor of shape [B, L, 2, H, T1, d_k]
         :return: log probs tensor of shape [B, T2, A],
                  and new state of shape [B, L, 2, H, T1+T2, d_k].
         """
-        assert len(list(x.shape)) in [1, 2]
-        if len(list(x.shape)) == 1:
-            x = x.unsqueeze(1)
-
         emb_x = self.token_embs(x)
         emb_p = self.position_embs.unsqueeze(0)
 
@@ -197,8 +192,5 @@ class PreactivationTranformer(tc.nn.Module):
 
         normed = self.ln_final(h)
         logits = self.fc(normed)
-
-        if logits.shape[1] == 1:
-            logits = logits.squeeze(1)
 
         return logits, present
